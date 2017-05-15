@@ -34,6 +34,14 @@ if not os.path.isfile("mastostats.csv"):
             myfile.write("timestamp,usercount,instancecount\n")
         myfile.close()
 
+if not os.path.isfile("cybrestats.csv"):    
+        print("cybrestats.csv does not exist, creating it...")
+
+        # Create CSV header row
+        with open("cybrestats.csv", "w") as myfile:
+            myfile.write("timestamp,usercount,pingscount\n")
+        myfile.close()
+
 # Returns the parameter from the specified file
 def get_parameter( parameter, file_path ):
     # Check if secrets file exists
@@ -87,12 +95,31 @@ instances = json.loads(page.content)
 user_count = 0
 instance_count = 0
 for instance in instances:
+    if not "users" in instance: continue
     user_count += instance["users"]
     if instance["up"] == True:
         instance_count += 1
 
 print("Number of users: %s " % user_count)
 print("Number of instances: %s " % instance_count)
+
+cybrepage = requests.get('https://' + mastodon_hostname + '/about/more')
+
+def get_between(s, substring1, substring2):
+    return s[(s.index(substring1)+len(substring1)):s.index(substring2)]
+
+# Remove newlines to make our life easier
+pagecontent = cybrepage.content.replace("\n", "")
+
+# Get the number of users, removing commas
+current_id = int( get_between(pagecontent, "Home to</span><strong>", "</strong><span>users").replace(",", ""))
+
+# Get the number of toots, removing commas
+num_toots = int (get_between(pagecontent, "Who authored</span><strong>", "</strong><span>pings").replace(",", ""))
+
+print("Number of cybreusers: %s "% current_id)
+print("Number of pings: %s "% num_toots )
+
 
 ###############################################################################
 # LOG THE DATA
@@ -102,6 +129,9 @@ print("Number of instances: %s " % instance_count)
 with open("mastostats.csv", "a") as myfile:
     myfile.write(str(ts) + "," + str(user_count) + "," + str(instance_count) + "\n")
 
+with open("cybrestats.csv", "a") as myfile:
+    myfile.write(str(ts) + "," + str(current_id) + "," + str(num_toots) + "\n")
+
 
 ###############################################################################
 # WORK OUT THE TOOT TEXT
@@ -110,6 +140,10 @@ with open("mastostats.csv", "a") as myfile:
 # Load CSV file
 with open('mastostats.csv') as f:
     usercount_dict = [{k: int(v) for k, v in row.items()}
+        for row in csv.DictReader(f, skipinitialspace=True)]
+
+with open('cybrestats.csv') as f:
+    cybrecount_dict = [{k: int(v) for k, v in row.items()}
         for row in csv.DictReader(f, skipinitialspace=True)]
 
 # Returns the timestamp,usercount pair which is closest to the specified timestamp
@@ -162,18 +196,29 @@ if len(usercount_dict) > 168:
 ###############################################################################
 
 # Generate chart
-call(["gnuplot", "generate.gnuplot"])
+call(["gnuplot", "generate_all.gnuplot"])
+call(["gnuplot", "generate_cybre.gnuplot"])
 
 
 if do_upload:
     # Upload chart
-    file_to_upload = 'graph.png'
+
+    file_to_upload = 'graph_cybre.png'
 
     print "Uploading %s..."%file_to_upload
     media_dict = mastodon.media_post(file_to_upload)
 
     print "Uploaded file, returned:"
     print str(media_dict)
+
+
+    file_to_upload = 'graph.png'
+
+    print "Uploading %s..."%file_to_upload
+    media_dict1 = mastodon.media_post(file_to_upload)
+
+    print "Uploaded file, returned:"
+    print str(media_dict1)
 
     ###############################################################################
     # T  O  O  T !
@@ -187,7 +232,7 @@ if do_upload:
     print "Tooting..." 
     print toot_text
 
-    mastodon.status_post(toot_text, in_reply_to_id=None, media_ids=[media_dict] )
+    mastodon.status_post(toot_text, in_reply_to_id=None, media_ids=[media_dict, media_dict1] )
 
     print "Successfully tooted!"
 else:

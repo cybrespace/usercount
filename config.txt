@@ -1,1 +1,1 @@
-mastodon_hostname: mastodon.social
+mastodon_hostname: cybre.space
