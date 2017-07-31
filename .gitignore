@@ -1,8 +1,12 @@
 # Secrets!
 secrets/secrets.txt
+clientcred.txt
+usercred.txt
 
 # Generated files
 graph.png
+graph_cybre.png
+cybrestats.csv
 mastostats.csv
 usercount.csv
 

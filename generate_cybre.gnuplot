@@ -16,7 +16,7 @@ tic_width = day
 # We're going to be using comma-separated values, so set this up
 set datafile separator ","
 
-# 'Pre-plot' the two charts "invisibly" first, to get the bounds of the data
+# 'Pre-plot' the three charts "invisibly" first, to get the bounds of the data
 # Interestingly, if you have your terminal set up with 'sixel' output, that's where they'll appear! Neato.
 
 # Set pre-plot settings common to each plot
@@ -24,8 +24,8 @@ set xrange [time(0) - timespan:]
 
 # Plot 'usercount' of the past week and get bounds (for GRAPH 1 y1)
 plot "cybrestats.csv" using 1:2
-usercountlow = 0
-#usercountlow = GPVAL_DATA_Y_MIN
+#usercountlow = 0
+usercountlow = GPVAL_DATA_Y_MIN
 usercounthigh = GPVAL_DATA_Y_MAX
 
 # Plot derivative of 'usercount' of the past week and get bounds (for GRAPH 1 y2)
@@ -33,17 +33,28 @@ plot "cybrestats.csv" using ($1):(d($2))
 uc_derivative_low = GPVAL_DATA_Y_MIN
 uc_derivative_high = GPVAL_DATA_Y_MAX
 
-# Plot derivative of 'instancecount' of the past week and get bounds (for GRAPH 2 y1)
+# Plot 'pings' of the past week and get bounds (for GRAPH 3 y1)
 plot "cybrestats.csv" using 1:3
+pingslow  = GPVAL_DATA_Y_MIN
+pingshigh = GPVAL_DATA_Y_MAX
+
+# Plot derivative 'pings' of the past week and get bounds (for GRAPH 3 y1)
+plot "cybrestats.csv" using ($1):(d($3))
+pings_derivative_low  = GPVAL_DATA_Y_MIN
+pings_derivative_high = GPVAL_DATA_Y_MAX
+
+# Plot 'connectioncount' of the past week and get bounds (for GRAPH 2 y1)
+plot "cybrestats.csv" using 1:4
 instanceslow  = GPVAL_DATA_Y_MIN
 instanceshigh = GPVAL_DATA_Y_MAX
+
 
 ###############################################################################
 # SETUP
 ###############################################################################
 
 # Set up our fonts and such
-set terminal png truecolor size 1464,660 enhanced font "/home/lode/usercount/fonts/RobotoCond.ttf" 16 background rgb "#282d37"
+set terminal png truecolor size 1464,990 enhanced font "/home/lode/usercount/fonts/RobotoCond.ttf" 16 background rgb "#181818"
 set output 'graph_cybre.png'
 
 # Set border colour and line width
@@ -64,7 +75,7 @@ set key textcolor rgb "white"
 set tics front
 
 # Set layout into multiplot mode (2 rows by 1 column = 2 plots)
-set multiplot layout 2, 1
+set multiplot layout 3, 1
 
 # Make sure we don't draw tics on the opposite side of the graph
 set xtics nomirror
@@ -94,11 +105,11 @@ set rmargin rmarg
 
 # Set Y axis
 set yr [usercountlow:usercounthigh]
-set ylabel "Number of users" textcolor rgb "#93ddff" offset 1,0,0
+set ylabel "Number of users" textcolor rgb "#2e85ad" offset 1,0,0
 
 # Set Y2 axis
 set y2r [0:uc_derivative_high * 2]
-set y2label 'Hourly increase' textcolor rgb "#7ae9d8" 
+set y2label 'Hourly increase' textcolor rgb "#7ae9d8"
 set y2tics 3000 
 
 # Set X axis
@@ -119,7 +130,7 @@ set style line 12 lc rgb "#FEFEFE" lt 1 lw 5
 set grid
 
 # Plot the graph
-plot "mastostats.csv" every ::1 using 1:2 w filledcurves x1 title '' lc rgb "#2e85ad", \
+plot "cybrestats.csv" every ::1 using 1:2 w filledcurves x1 title '' lc rgb "#2e85ad", \
         '' u ($1):(d($2)) w filledcurves x1 title '' axes x1y2 fs transparent solid 0.7 noborder lc rgb "#7ae9d8"
 
 
@@ -133,15 +144,52 @@ plot "mastostats.csv" every ::1 using 1:2 w filledcurves x1 title '' lc rgb "#2e
 unset y2tics        # Remove y2 tics (only one y axis on this graph)
 unset y2label       # Remove y2 label (only one y axis on this graph)
 
-# Set bottom graph margins
+# Set middle graph margins
 set tmargin cmarg
+set bmargin cmarg
+set lmargin lmarg
+set rmargin rmarg
+
+# Set Y axis
+set yr [instanceslow:instanceshigh]
+set ylabel "# of Connections" textcolor rgb "#E9967A"
+
+# Set X axis
+set xdata time 
+set xrange [time(0) - timespan:]
+set timefmt "%s"
+
+set tics scale 0
+set xtics tic_width
+set format x ""
+
+# Overall graph style
+set style line 12 lc rgb "#FEFEFE" lt 1 lw 5
+set grid
+
+# Plot the graph
+plot "cybrestats.csv" every ::1 using 1:4 w filledcurves x1 title '' lc rgb "#E9967A"
+
+
+###############################################################################
+# GRAPH 3
+# Number of pings
+###############################################################################
+
+# Set bottom graph margins
+set tmargin tmarg
 set bmargin bmarg
 set lmargin lmarg
 set rmargin rmarg
 
 # Set Y axis
-set yr [0:instanceshigh]
-set ylabel "Pings per hour" textcolor rgb "#E9967A"
+set yr [pingslow:pingshigh]
+set ylabel "Number of pings" textcolor rgb "#3aad2e" offset 1,0,0
+
+# Set Y2 axis
+set y2r [0:pings_derivative_high * 2]
+set y2label 'Pings per hour' textcolor rgb "#7deb78"
+set y2tics 3000 
 
 # Set X axis
 set xdata time 
@@ -150,13 +198,14 @@ set timefmt "%s"
 set format x "%a\n%d %b"
 set xtics tic_width
 
+
 # Overall graph style
 set style line 12 lc rgb "#FEFEFE" lt 1 lw 5
 set grid
 
 # Plot the graph
-plot "cybrestats.csv" every ::1 using 1:3 w filledcurves x1 title '' lc rgb "#E9967A"
+plot "cybrestats.csv" every ::1 using 1:3 w filledcurves x1 title '' lc rgb "#3aad2e", \
+        '' u ($1):(d($3)) w filledcurves x1 title '' axes x1y2 fs transparent solid 0.7 noborder lc rgb "#7deb78"
 
 
-# I think this needs to be here for some reason
-unset multiplot
+# I think this needs to be here for some reason unset multiplot

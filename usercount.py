@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 from six.moves import urllib
 from datetime import datetime
@@ -15,6 +15,7 @@ import sys
 import os.path        # For checking whether secrets file exists
 import requests       # For doing the web stuff, dummy!
 
+from fullwidth import fullwidth
 
 ###############################################################################
 # INITIALISATION
@@ -90,7 +91,7 @@ ts = int(time.time())
 
 page = requests.get('https://instances.mastodon.xyz/instances.json')
 
-instances = json.loads(page.content)
+instances = json.loads(page.content.decode("utf-8", "ignore"))
 
 user_count = 0
 instance_count = 0
@@ -103,13 +104,13 @@ for instance in instances:
 print("Number of users: %s " % user_count)
 print("Number of instances: %s " % instance_count)
 
-cybrepage = requests.get('https://' + mastodon_hostname + '/about/more')
+cybrepage = requests.get('https://' + mastodon_hostname + '/about/more').content.decode("utf-8", "ignore")
 
 def get_between(s, substring1, substring2):
     return s[(s.index(substring1)+len(substring1)):s.index(substring2)]
 
 # Remove newlines to make our life easier
-pagecontent = cybrepage.content.replace("\n", "")
+pagecontent = cybrepage.replace("\n", "")
 
 # Get the number of users, removing commas
 current_id = int( get_between(pagecontent, "Home to</span><strong>", "</strong><span>users").replace(",", ""))
@@ -117,8 +118,12 @@ current_id = int( get_between(pagecontent, "Home to</span><strong>", "</strong><
 # Get the number of toots, removing commas
 num_toots = int (get_between(pagecontent, "Who authored</span><strong>", "</strong><span>pings").replace(",", ""))
 
+# Get the number of toots, removing commas
+num_cnxns = int (get_between(pagecontent, "Connected to</span><strong>", "</strong><span>other instances").replace(",", ""))
+
 print("Number of cybreusers: %s "% current_id)
 print("Number of pings: %s "% num_toots )
+print("Number of connections: %s "% num_cnxns )
 
 
 ###############################################################################
@@ -130,7 +135,7 @@ with open("mastostats.csv", "a") as myfile:
     myfile.write(str(ts) + "," + str(user_count) + "," + str(instance_count) + "\n")
 
 with open("cybrestats.csv", "a") as myfile:
-    myfile.write(str(ts) + "," + str(current_id) + "," + str(num_toots) + "\n")
+    myfile.write(str(ts) + "," + str(current_id) + "," + str(num_toots) + "," + str(num_cnxns) + "\n")
 
 
 ###############################################################################
@@ -155,40 +160,29 @@ def find_closest_timestamp( input_dict, seek_timestamp ):
 
 
 # Calculate difference in times
-hourly_change_string = ""
-daily_change_string  = ""
-weekly_change_string = ""
+
+cybre_users = (-1,-1)
+cybre_cnxns = (-1,-1)
+cybre_pings = (-1,-1)
+
+ntwrk_users = (-1,-1)
+ntwrk_insts = (-1,-1)
 
 one_hour = 60 * 60
 one_day  = one_hour * 24
 one_week = one_hour * 168
 
-# Hourly change
-if len(usercount_dict) > 2:
-    one_hour_ago_ts = ts - one_hour
-    one_hour_ago_val = find_closest_timestamp( usercount_dict, one_hour_ago_ts )
-    hourly_change = user_count - one_hour_ago_val['usercount']
-    print "Hourly change %s"%hourly_change
-    if hourly_change > 0:
-        hourly_change_string = "+" + format(hourly_change, ",d") + " in the last hour\n"
-
 # Daily change
 if len(usercount_dict) > 24:
     one_day_ago_ts = ts - one_day
-    one_day_ago_val = find_closest_timestamp( usercount_dict, one_day_ago_ts )
-    daily_change = user_count - one_day_ago_val['usercount']
-    print "Daily change %s"%daily_change
-    if daily_change > 0:
-        daily_change_string = "+" + format(daily_change, ",d") + " in the last day\n"
+    one_day_ago_ntwrk = find_closest_timestamp( usercount_dict, one_day_ago_ts )
+    one_day_ago_cybre = find_closest_timestamp( cybrecount_dict, one_day_ago_ts )
+    cybre_users = (current_id, current_id - one_day_ago_cybre['usercount'])
+    cybre_cnxns = (num_cnxns, num_cnxns - one_day_ago_cybre['connectioncount'])
+    cybre_pings = (num_toots, num_toots - one_day_ago_cybre['pingscount'])
 
-# Weekly change
-if len(usercount_dict) > 168:
-    one_week_ago_ts = ts - one_week
-    one_week_ago_val = find_closest_timestamp( usercount_dict, one_week_ago_ts )
-    weekly_change = user_count - one_week_ago_val['usercount']
-    print "Weekly change %s"%weekly_change
-    if weekly_change > 0:
-        weekly_change_string = "+" + format(weekly_change, ",d") + " in the last week\n"
+    ntwrk_users = (user_count, user_count - one_day_ago_ntwrk['usercount'])
+    ntwrk_insts = (instance_count, instance_count - one_day_ago_ntwrk['instancecount'])
 
 
 ###############################################################################
@@ -203,37 +197,54 @@ call(["gnuplot", "generate_cybre.gnuplot"])
 if do_upload:
     # Upload chart
 
-    file_to_upload = 'graph_cybre.png'
-
-    print "Uploading %s..."%file_to_upload
-    media_dict = mastodon.media_post(file_to_upload)
-
-    print "Uploaded file, returned:"
-    print str(media_dict)
-
 
     file_to_upload = 'graph.png'
 
-    print "Uploading %s..."%file_to_upload
-    media_dict1 = mastodon.media_post(file_to_upload)
+    print("Uploading %s..."%file_to_upload)
+    media_dict0 = mastodon.media_post(file_to_upload)
 
-    print "Uploaded file, returned:"
-    print str(media_dict1)
+    print("Uploaded file, returned:")
+    print(str(media_dict0))
+
+
+
+    file_to_upload = 'graph_cybre.png'
+
+    print("Uploading %s..."%file_to_upload)
+    media_dict = mastodon.media_post(file_to_upload)
+
+    print("Uploaded file, returned:")
+    print(str(media_dict))
+
 
     ###############################################################################
     # T  O  O  T !
     ###############################################################################
 
-    toot_text = format(user_count, ",d") + " accounts \n"
-    toot_text += hourly_change_string
-    toot_text += daily_change_string
-    toot_text += weekly_change_string
+    def rightpad(s, n):
+        while (len(s) < n): s += " "
+        return fullwidth(s)
 
-    print "Tooting..." 
-    print toot_text
+    colwidth = max(len(str(cybre_users[0])) + len(str(cybre_users[1])) + 8,
+                   len(str(cybre_cnxns[0])) + len(str(cybre_cnxns[1])) + 13,
+                   len(str(cybre_pings[0])) + len(str(cybre_pings[1])) + 8,
+                   17)
 
-    mastodon.status_post(toot_text, in_reply_to_id=None, media_ids=[media_dict, media_dict1] )
+    toot_text =  "NETWORK STATS\n"
+    toot_text +=  "users: {:,} ({:+} today)\n".format(*ntwrk_users)
+    toot_text +=  "instances: {:,} ({:+} today)\n".format(*ntwrk_insts)
 
-    print "Successfully tooted!"
+    toot_text += "\nCYBRESPACE STATS\n"
+    toot_text += "users: {:,} ({:+} today)\n".format(*cybre_users)
+    toot_text += "connections: {:,} ({:+} today)\n".format(*cybre_cnxns)
+    toot_text += "pings: {:,} ({:+} today)\n".format(*cybre_pings)
+
+
+    print("Tooting..." )
+    print(toot_text)
+
+    mastodon.status_post(toot_text, in_reply_to_id=None, media_ids=[media_dict0, media_dict])
+
+    print("Successfully tooted!")
 else:
     print("--no-upload specified, so not uploading anything")
