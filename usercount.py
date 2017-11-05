@@ -89,7 +89,7 @@ headers={ 'Authorization': 'Bearer %s'%uc_access_token }
 # Get current timestamp
 ts = int(time.time())
 
-page = requests.get('https://instances.mastodon.xyz/instances.json')
+page = requests.get('https://instances.social/instances.json')
 
 instances = json.loads(page.content.decode("utf-8", "ignore"))
 
